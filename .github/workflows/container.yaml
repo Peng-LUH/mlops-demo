@@ -1,0 +1,46 @@
+name: Container
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    name: Buid and push container image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v6
+      
+      - name: Login to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io \
+            -u "${{ github.actor }}" \
+            --password-stdin
+      
+      - name: set image name
+        run: |
+          echo "IMGE_NAME=ghcr.io/${ GITHUB_REPOSITORY_OWNER }/mlops-demo" >> "$GITHUB_ENV"
+      
+      - name: Build image
+        run: |
+          docker build \
+            -t "$IMAGE_NAME:${{ github.sha }}" \
+            -t "$IMAGE_NAME:latest" \
+            .
+
+      - name: Push image by commit SHA
+        run: |
+          docker push "$IMAGE_NAME:${{ github.sha }}"
+      
+      - name: Push latest image
+        if: github.ref == 'refs/heads/main'
+        run: |
+          docker push "$IMAGE_NAME:latest"
