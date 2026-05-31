@@ -52,7 +52,7 @@ def ready():
     return Response(status_code=503)
 
 
-@app.post("predict", response_model=PredictionResponse)
+@app.post("/predict", response_model=PredictionResponse)
 def predict(request: PredictionRequest):
     REQUEST_COUNT.labels(endpoint="/predict").inc()
 
