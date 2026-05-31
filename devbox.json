@@ -1,0 +1,39 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.17.2/.schema/devbox.schema.json",
+  "packages": [
+    "act@latest",
+    "gh@latest",
+    "gum@latest",
+    "jq@latest",
+    "yq-go@latest",
+    "envsubst@latest",
+    "procps",
+    "ko@latest",
+    "oras@latest",
+    "kluctl@latest",
+    "kind@latest",
+    "k9s@latest",
+    "kubectl@latest",
+    "kubectx@latest",
+    "kubent@latest",
+    "kubernetes-helm@latest",
+    "kustomize@latest",
+    "tilt@latest",
+    "poetry@latest",
+    "python312@latest",
+    "uv@latest",
+    "gcc@latest",
+    "stdenv.cc.cc.lib"
+  ],
+  "shell": {
+    "init_hook": [
+      "echo 'Welcome to devbox!' > /dev/null",
+      "export LD_LIBRARY_PATH=$DEVBOX_PACKAGES_DIR/lib:$LD_LIBRARY_PATH"
+    ],
+    "scripts": {
+      "test": [
+        "echo \"Error: no test specified\" && exit 1"
+      ]
+    }
+  }
+}
