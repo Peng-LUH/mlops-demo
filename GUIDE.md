@@ -578,3 +578,42 @@ git add .
 git commit -m "Add CI workflow with uv"
 git push
 ```
+
+> The workflow should be running if you navigate to the Actions in GitHub UI.
+
+Der Workflow führt aus:
+1. setup workdir -> `working-directory: app`
+1. checkout -> `ueses: actions/checkout@v6`
+1. install uv -> `uses: astrl-sh/setup-uv@v6`
+1. install dependencies -> `uv sync --all-groups --frozen`
+1. check format -> `uv run ruff format --check ... ...`
+1. check linting -> `uv run ruff check ... ... `
+1. testing -> `uv run pytest ...`
+
+## 11 GitHub Actions: Docker Build Workflow
+
+Dieser Worfflow prüft, ob das Docker Image gebaut werden kann.
+
+```yaml
+# .github/workflows/docker-build.yaml
+name: Docker Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  docker-build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Build Image
+        run: |
+          docker build -t ml-api:${{ github.sha }} .
+```
