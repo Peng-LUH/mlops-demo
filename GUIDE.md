@@ -484,4 +484,97 @@ summary.json
 kubeconfig*
 ```
 
-> Wichtig: app/uv.lock file nicht ignorieren
+> Wichtig: app/uv.lock file nicht ignorieren.
+
+### 8.2 Git initialisieren
+```bash
+git init
+git add .
+git commit -m "Initial MLOps demo with kubernetes kind"
+```
+
+## 9 GitHub Repository erstellen
+### 9.1 Variante A: GitHub Web UI
+
+- Login to [GitHub](https://github.com/), und erstell ein neues Repository
+- Name: mlops-demo
+- Kein README, keine .gitignore, keine License hinzufügen, weil lokal schon Dateien existieren.
+- Die Remote verbinden
+```
+git remote add origin git@github.com:<github-user>/mlops-demo.git
+git branch -M main
+git push -u orgin main # pushing von main zu origin (main -> origin)
+```
+
+### 9.2 Variante B: GitHub CLI
+```bash
+gh version # github cli tool überprüfen
+gh auth login
+gh repo create mlops-demo --public --source=. --remote=origin --push
+```
+
+Für ein privates Repository
+```bash
+gh repo create mlops-demo --private --source=. --remote=origin --push
+```
+
+## 10 GitHub Actions: CI Workflow
+
+- GitHub Actions Workflows sind YAML-Dateien im Verzeichnis `<root>/.github/workflows/`.
+
+- GitHub beschreibt einen Workflow als konfigurierbaren automatisierten Prozess aus einem oder mehreren **Jobs**.
+
+- Dokumentation: [Worklow Syntax for GitHub Actions](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax?utm_source=chatgpt.com)
+
+- Für `uv` empfielt die offizielle Dokumentation die Action `astral-sh/setup-uv`, die uv installiert und optional Caching aktiviert.
+
+```yaml
+# .github/workflows/ci.yaml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_requests:
+    branches: [main]
+
+jobs:
+  python-quality:
+    name: Python quality checks
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: app
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      
+      - name: Install uv
+        ueses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      
+      - name: Setup Python
+        run: uv python install 3.12
+      
+      - name: Install Dependencies
+        run: uv sync --all-groups --frozen
+      
+      - name: Check Formatting
+        run: uv run ruff format --check src ../tests
+      
+      - name: Lint
+        run: uv run ruff check src ../tests
+      
+      - name: Test
+        run: uv run pytest ../tests
+```
+
+Committen und pushen:
+```bash
+git add .
+git commit -m "Add CI workflow with uv"
+git push
+```
