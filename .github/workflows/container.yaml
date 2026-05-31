@@ -27,7 +27,8 @@ jobs:
       
       - name: set image name
         run: |
-          echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY_OWNER}/mlops-kind-demo" >> "$GITHUB_ENV"
+          REPO_OWNER=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE_NAME=ghcr.io/${REPO_OWNER}/mlops-kind-demo" >> "$GITHUB_ENV"
       
       - name: Build image
         run: |
