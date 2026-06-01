@@ -30,7 +30,7 @@ class PredictionResponse(BaseModel):
 def root():
     REQUEST_COUNT.labels(endpoint="/").inc()
     return {
-        "message": "MLOps API is running",
+        "message": "MLOps API Version 2 is running.",
         "model_version": MODEL_VERSION,
         "log_level": LOG_LEVEL,
     }

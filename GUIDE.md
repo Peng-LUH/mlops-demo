@@ -993,3 +993,120 @@ kubectl get all -n mlops-demo
 kubectl get pods -n mlops-demo
 kubectl get service -n mlops-demo
 ```
+
+- Test
+```bash
+curl http://localhost:8000/
+curl http://localhost:8000/health/ready
+curl http://localhost:8000/health/live
+```
+
+- prediction
+```bash
+curl -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{"features": [1.0, 2.0, 3.0]}'
+```
+
+- metrics
+```bash
+curl http://localhost:8000/metrics
+```
+
+## 17 Kubernetes-Konzepte prüfen
+### 17.1 Deployment, ReplicaSet, Pod
+```bash
+kubectl get deployment -n mlops-demo
+kubectl get replicaset -n mlops-demo
+kubectl get pods -n mlops-demo
+```
+
+Zusammenhang:
+
+- Deployment -> verwaltet Rollouts und gewünschte Version
+- ReplicaSet -> hält gewünschte Anzahl Pods stabil
+- Pod -> kleinste auführbare Einheit
+- Container -> läuft innerhalb des Pods
+
+### 17.2 Service und Labels
+```bash
+kubectl get pods -n mlops-demo --show-labels
+kubectl describe service ml-api -n mlops-demo
+kubectl get endpoints ml-api -n mlops-demo
+```
+
+Der Service wählt Pods über diesen Selector aus:
+```yaml
+selector:
+  app: ml-api
+```
+
+Wenn der Selector nicht zu den Pod-Labels passt, hat der Service keine Endpoins.
+
+## 18 Debugging-Kommandos
+Logs
+```bash
+kubectl logs deployment/ml-api -n mlops-demo
+```
+
+Pod-Details
+```bash
+kubectl describe pod <pod-name> -n mlops-demo
+```
+
+Events:
+```bash
+kubectl get events -n mlops-demo --sort-by=.metadata.creationTimestamp
+```
+
+In den Container gehen:
+```bash
+kubectl exec -it deployment/ml-api -n mlops-demo -- /bin/sh
+```
+
+Empfohlene Debugging-Reihenfolge:
+```bash
+- kubectl get pods
+- kubectl describe pod
+- kubectl logs
+- kubectl get events
+- kubectl describe service
+- kubectl get endpoints
+```
+
+## Readiness Probe praktisch testen
+Ändere in k8s/deployment.yaml testweise:
+```yaml
+readinessProbe:
+  httpGet:
+    path: /wrong
+    port: 8000
+```
+
+Anwenden:
+```bash
+kubectl apply -f k8s/deployment.yaml
+kubectl get pods -n mlops-demo -w
+```
+Du wirst sehen, dass Pods nicht `Ready` werden.
+
+Zurück ändern:
+```yaml
+# k8s/deployment.yaml
+readinessProbe:
+  httpGet:
+    path: /health/ready
+    port: 8000
+```
+
+Dann wieder anwenden:
+```bash
+kubectl apply -f k8s/deployment.yaml
+kubectl rollout status deployment/ml-api -n mlops-demo
+```
+
+Merke:
+- `readinessProbe` -> entscheidet, ob ein Pod Traffic bekommt
+- `livenessProbe` -> entscheidet, ob ein Container neu gestartet wird
+- `startupProbe` -> gitb langsam startenden Apps mehr Zeit
+
