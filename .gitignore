@@ -40,3 +40,6 @@ summary.json
 
 #local kube files
 kubeconfig*
+
+.mounts/
+.mounts/*

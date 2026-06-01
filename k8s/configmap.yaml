@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ml-api-config
+  namespace: mlops-demo
+data:
+  MODEL_VERSION: "v1"
+  LOG_LEVEL: "INFO"

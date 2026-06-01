@@ -617,3 +617,343 @@ jobs:
         run: |
           docker build -t ml-api:${{ github.sha }} .
 ```
+
+Committen und pushen:
+```bash
+git add .github/workflows/docker-build.yaml
+git commit -m "add docker-build.yaml file"
+git push
+```
+
+#### Wo liegt das Image danch?
+- Nur temporär auf dem GitHub-Actions-Runner.
+- Also ungefähr:
+  ```bash
+  GitHub Actions Runner
+  └── Docker Engine
+      └── Image: ml-api:<commit-sha>
+  ```
+- Es wird **nicht** automatisch gespeichert und **nicht** automatisch gepusht.
+
+- Nach Ende des Workflow-Laufs wird der Runner verworfen. Damit verschiwindet auch das lokal gebaute Docker Image.
+
+- Dieser Workflow überprüft nur: `Kann das Docker Image erfolgreich gebaut werden?`
+
+- Es veröffentlicht das Image nicht.
+
+- Für build und push wird ein zusätzlicher Workflow `Build und Push nach GHCR` gebaut. Dort passiert:
+  ```bash
+  docker push "$IMAGE_NAME:${{ github.sha }}"
+  docker push "$IMAGE_NAME:latest"
+  ```
+  Erst dadurch landet das Image in der GitHub Container Resigtry.
+
+## 12 GitHub Actions: Build und Push nach GHCR
+```yaml
+# .github/workflows/container.yaml
+name: Container
+
+on:
+  push:
+    branches: [main]
+  tags:
+    - "v*.*.*"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    name: Buid and push container image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v6
+      
+      - name: Login to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io \
+            -u "${{ github.actor }}" \
+            --password-stdin
+      
+      - name: set image name
+        run: |
+          REPO_OWNER=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE_NAME=ghcr.io/${REPO_OWNER}/mlops-demo" >> "$GITHUB_ENV"
+      
+      - name: Build image
+        run: |
+          docker build \
+            -t "$IMAGE_NAME:${{ github.sha }}" \
+            -t "$IMAGE_NAME:latest" \
+            .
+
+      - name: Push image by commit SHA
+        run: |
+          docker push "$IMAGE_NAME:${{ github.sha }}"
+      
+      - name: Push latest image
+        if: github.ref == 'refs/heads/main'
+        run: |
+          docker push "$IMAGE_NAME:latest"
+```
+
+Wenn der Workflow erfolgreich durchgeführt ist, kann man das Image unter Packages im GitHub-Profil finden. 
+
+## 13 Kind Cluster erstellen
+Dokumentation: [kind](https://kind.sigs.k8s.io/docs/user/configuration/?utm_source=chatgpt.com)
+
+### 13.1 kind-Konfiguration
+
+```yaml
+# kind/kind-config.yaml
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: mlops-demo
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30080
+        hostPort: 8080
+        protocol: TCP
+  
+  - role: worker
+    extraPortMappings:
+      - containerPort: 30080
+        hostPort: 8082
+        protocol: TCP
+    extraMounts:
+      - hostPath: /home/peng-luh/__git/devops_mlops_101/mlops-demo/.mounts/mount_worker_1
+      containerPath: /mounts/worker
+  
+  - role: worker
+    extraPortMappings:
+      - containerPort: 30080
+        hostPort: 8084
+        protocol: TCP
+    extraMounts:
+      - hostPath: /home/peng-luh/__git/devops_mlops_101/mlops-demo/.mounts/mount_worker_2
+      containerPath: /mounts/work
+```
+
+Cluster erstellen:
+```bash
+kind create cluster --config kind/kind-config.yaml
+```
+
+Kind-Cluster stoppen und löschen:
+```
+kind get clusters
+kind delete cluster --name <cluster-name>
+```
+
+Prüfen
+```bash
+kubectl cluster-info
+kubectl get nodes
+```
+
+## 14 Lokales Image in Kind laden
+Für den ersten Durchlauf nutzen wir das lokal gebaute Image:
+```bash
+# docker build -t ml-api:0.1.0
+kind load docker-image ml-api:0.1.0 --name mlops-demo
+```
+
+Das ist notwendig, weil der kind Node ein eigener Container ist. Das lokal gebaute Docker-Image ist für Kubernetes im Kind-Cluster nicht automatisch verfügbar. Die Kind-Dokumentation zeigt dafür `kind load docker-image my-app:latest`; bei benannten Clustern wird `--name <cluster-name>` verwendet.
+
+## 15 Kubernetes-Manifeste erstellen
+- `Kubernetes-Manifeste` sind Konfigurationsdateien, in denen du beschreibst, welche Kubernetes-Ressourcen existieren sollen.
+- Meinstens sind die Manifeste in YAML geschrieben. Zum Beispiel:
+  ```yaml
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: ml-api
+  spec:
+    replicas: 2
+  ```
+  > Ein Manifest ist also eine deklarative Beschreibung des gewünschten Zustands.
+
+- Ein Manifest ist eine Datei, die beschreibt, was vorhanden sein soll. In K8S bedeutet das konkret:
+  
+  1. Diese Ressource soll im Cluster existieren.
+  1. So soll sie heißen.
+  1. So soll sie konfiguriert sein.
+  1. So viele Instanzen sollen laufen.
+  1. Welches Image soll verwendet werden.
+  1. Welche Ports, Umgebungsvariablen, Volumes, Limits usw. sollen gelten.
+
+- Beispiele für K8S Manifeste
+  ```bash
+  k8s/
+  ├── namespace.yaml
+  ├── configmap.yaml
+  ├── secret.yaml
+  ├── deployment.yaml
+  ├── service.yaml
+  └── hpa.yaml
+  ``` 
+
+
+### 15.1 Namespace
+Ein Namespace ist eine logische Umgebung im Cluster.
+```yaml
+# k8s/namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mlops-demo
+```
+Ein Namespace ist ähnlich wie ein Projektordner im Cluster. Deine Anwendung, Services, Secrets und ConfigMaps können darin gruppiert werden.
+
+### 15.2 ConfigMap
+Ein ConfigMap enthält nicht-sensitive Konfiguration.
+```yaml
+# k8s/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ml-api-config
+  namespace: mlops-demo
+data:
+  MODEL_VERSION: "v1"
+  LOG_LEVEL: "INFO"
+```
+
+Bedeutungen:
+- speichere Konfiguration für die Anwendung
+- MODEL_VERSION ist v1.
+- LOG_LEVEL ist INFO.
+
+Diese Werte kann Container später als Umgebungsvariablen bekommen.
+
+### 15.3 Secrets
+Ein Secret enthält sensitive Werte, zum Beispiel Tokens oder Passwörter.
+```yaml
+# k8s/secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ml-api-secret
+  namespace: mlops-demo
+type: Opaque
+stringData:
+  API_TOKEN: "demo-token-change-me"
+```
+
+### 15.4 Deployment
+Ein Deployment beschreibt, wie deine Anwendung laufen soll.
+
+```yaml
+# k8s/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ml-api
+  namespace: mlops-demo
+  labels:
+    app: ml-api
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabel:
+      app: ml-api
+  template:
+    metadata:
+      labels:
+        app: ml-api
+    spec:
+      containers:
+        - name: ml-api
+          image: ml-api:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+      
+          env:
+            - name: MODEL_VERSION
+              valueFrom:
+                configMapKeyRef:
+                  name: ml-api-config
+                  key: MODEL_VERSION
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: ml-api-config
+                  key: LOG_LEVEL
+            - name: API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ml-api-secret
+                  key: API_TOKEN
+          
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8000
+            initialDeplaySeconds: 5
+            periodSeconds: 10
+          
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8000
+            initialDelaySeconds: 15
+            periodSecond: 20
+          
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+          
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+```
+
+Das Deployment enthält bewusst mehrere Best-Practice-Elemente:
+- zwei Replicas
+- Rolling Update
+- Readiness/Liveness Probe
+- Resource Requests/Limits
+- ConfigMap/Secret-Integration
+- eingeschränkte Container-Rechte.
+
+
+### 15.5 HPA (Horizontal Pod Autosaler)
+
+```yaml
+# k8s/hpa.yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ml-api-hpa
+  namesapce: mlops-demo
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ml-api
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50
+```
+

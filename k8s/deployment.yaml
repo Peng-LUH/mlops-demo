@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ml-api
+  namespace: mlops-demo
+  labels:
+    app: ml-api
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabel:
+      app: ml-api
+  template:
+    metadata:
+      labels:
+        app: ml-api
+    spec:
+      containers:
+        - name: ml-api
+          image: ml-api:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+      
+          env:
+            - name: MODEL_VERSION
+              valueFrom:
+                configMapKeyRef:
+                  name: ml-api-config
+                  key: MODEL_VERSION
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: ml-api-config
+                  key: LOG_LEVEL
+            - name: API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ml-api-secret
+                  key: API_TOKEN
+          
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8000
+            initialDeplaySeconds: 5
+            periodSeconds: 10
+          
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8000
+            initialDelaySeconds: 15
+            periodSecond: 20
+          
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+          
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
