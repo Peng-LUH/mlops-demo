@@ -931,8 +931,28 @@ Das Deployment enthält bewusst mehrere Best-Practice-Elemente:
 - ConfigMap/Secret-Integration
 - eingeschränkte Container-Rechte.
 
+### 15.5 Service
+```yaml
+# k8s/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: ml-api
+  namespace: mlops-demo
+  labels:
+    app: ml-api
+spec:
+  type: NodePort
+  selector:
+    app: ml-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+      nodePort: 30080
+```
 
-### 15.5 HPA (Horizontal Pod Autosaler)
+### 15.6 HPA (Horizontal Pod Autosaler)
 
 ```yaml
 # k8s/hpa.yaml
