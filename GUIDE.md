@@ -977,3 +977,19 @@ spec:
           averageUtilization: 50
 ```
 
+## 16 Deployment auf kind-Cluster
+- Apply
+```bash
+kubectl apply -f k8s/namespace.yaml
+kubectl apply -f k8s/configmap.yaml
+kubectl apply -f k8s/secret.yaml
+kubectl apply -f k8s/deployment.yaml
+kubectl apply -f k8s/service.yaml
+```
+
+- Status prüfen:
+```bash
+kubectl get all -n mlops-demo
+kubectl get pods -n mlops-demo
+kubectl get service -n mlops-demo
+```
