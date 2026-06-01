@@ -1,5 +1,4 @@
 from fastapi.testclient import TestClient
-
 from ml_api.main import app
 
 client = TestClient(app)
@@ -9,7 +8,7 @@ def test_root():
     response = client.get("/")
     assert response.status_code == 200
     body = response.json()
-    assert body["message"] == "MLOps API is running"
+    assert body["message"] == "MLOps API Version 2 is running..."
 
 
 def test_health_live():

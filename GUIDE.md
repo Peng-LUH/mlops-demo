@@ -1110,3 +1110,25 @@ Merke:
 - `livenessProbe` -> entscheidet, ob ein Container neu gestartet wird
 - `startupProbe` -> gitb langsam startenden Apps mehr Zeit
 
+Fpr ML-APIs ist das besonders wichtig, weil der Prozess schon laufen kann, obwhol das Modell noch nicht geladen ist.
+
+## 20 Rolling Update und Rollback testen
+Ändere in `app/src/ml-api/main.py`
+```python
+"message": "MLOps API is running"
+```
+zu
+```python
+"message": "MLOps API version 2 is running"
+```
+
+Dann neues Image bauen:
+```bash
+docker build -t ml-api:0.2.0 .
+```
+
+Dann ladet das neue Image zu kind Cluster
+```bash
+# load docker image <ml-api:0.2.0> to cluster <mlops-demo>
+kind load docker-image ml-api:0.2.0 --name mlops-demo
+```
